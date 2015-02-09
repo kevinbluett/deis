@@ -23,6 +23,7 @@ Subcommands, use ``deis help [subcommand]`` to learn more::
 
   keys          manage ssh keys used for `git push` deployments
   perms         manage permissions for applications
+  git           manage git for applications
 
 Shortcut commands, use ``deis shortcuts`` to see all::
 
@@ -1268,6 +1269,56 @@ class DeisClient(object):
                 return
             for domain in domains:
                 self._logger.info(domain['domain'])
+        else:
+            raise ResponseError(response)
+
+    def git(self, args):
+        """
+        Valid commands for git:
+
+        git:remote          Adds git remote of application to repository
+
+        Use `deis help [command]` to learn more.
+        """
+        return
+
+    def git_remote(self, args):
+        """
+        Adds git remote of application to repository
+
+        Usage: deis git:remote [options]
+
+        Options:
+          -a --app=<app>
+            the uniquely identifiable name for the application.
+
+          -r --remote REMOTE        
+            name remote to create, default 'deis'
+        """
+        app = args.get('--app')
+        if not app:
+            app = self._session.app
+        response = self._dispatch(
+            'get', "/v1/apps/{app}/domains".format(app=app))
+        if response.status_code == requests.codes.ok:
+            # set a git remote if necessary
+            try:
+                self._session.git_root()
+            except EnvironmentError:
+                return
+            hostname = urlparse.urlparse(self._settings['controller']).netloc.split(':')[0]
+            git_remote = "ssh://git@{hostname}:2222/{app}.git".format(**locals())
+            remote_name = args.get('--remote')
+            if not remote_name: 
+                remote_name = 'deis'
+            try:
+                subprocess.check_call(
+                    ['git', 'remote', 'add', remote_name, git_remote],
+                    stdout=subprocess.PIPE)
+                self._logger.info('Git remote {} added'.format(remote_name))
+            except subprocess.CalledProcessError:
+                self._logger.error('Could not create Deis remote')
+                sys.exit(1)
         else:
             raise ResponseError(response)
 
